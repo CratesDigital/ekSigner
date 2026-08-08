@@ -16,22 +16,57 @@ the `signsrv:` protocol handler rather than listening on a port, it prompts for
 the PIN on every signature, and it is Windows-only. See
 [the design doc](../../docs/eta-signing-agent-design.md).
 
-## Run
+## Set-up, once per workstation
+
+1. **Install.** Download `ekPOS-Signing-Agent-Setup.exe` — the Connection tab
+   offers it — and run it. No administrator rights and nothing to configure; it
+   installs under the user's own profile and starts at every login from then on.
+2. **Pair it.** The agent's page opens by itself after installing, showing a
+   six-digit code. In ekPOS → Integrations → ETA → Connection, enter that code.
+   The agent records that origin and refuses every other one. To see the code
+   again later, open <http://127.0.0.1:8420/>.
+3. **Unlock the token** at <http://127.0.0.1:8420/unlock> and enter the PIN.
+   It stays unlocked for 60 minutes by default.
+4. **Sign** from ekPOS → Submissions.
+
+## Run from source
 
 ```powershell
 dotnet run
 ```
 
-It prints a pairing code and listens on `http://127.0.0.1:8420`.
+Same thing without the installer: listens on `http://127.0.0.1:8420` and opens
+its page on first run. The build is windowless, so `Console.WriteLine` output
+goes nowhere — read the state off the page instead.
 
-## Set-up, once per workstation
+## Releasing
 
-1. **Start the agent.** It shows a six-digit pairing code.
-2. **Pair it** — ekPOS → Integrations → ETA → Connection → enter the code.
-   The agent records that origin and will refuse every other one.
-3. **Unlock the token** at <http://127.0.0.1:8420/unlock> and enter the PIN.
-   It stays unlocked for 60 minutes by default.
-4. **Sign** from ekPOS → Submissions.
+```powershell
+git tag sign-agent-v1.0.0
+git push origin sign-agent-v1.0.0
+```
+
+`.github/workflows/sign-agent.yml` publishes self-contained for `win-x64`,
+compiles `installer/ekpos-sign-agent.iss`, and attaches the installer to a
+GitHub release. It needs a Windows runner — both the publish and Inno Setup do.
+
+Two things that still need a decision:
+
+- **The installer is unsigned**, so Windows SmartScreen warns on first
+  download. The people installing this are shop staff, who are right to be
+  suspicious of that warning; an OV/EV certificate and a signing step in the
+  workflow would remove it.
+- **The repo is private**, so a GitHub release asset answers a tenant's browser
+  with a 404. Copy the installer somewhere public and point
+  `ETA_AGENT_DOWNLOAD_URL` at it, or the download button stays hidden.
+
+## Where the config lives
+
+`%APPDATA%\ekPOS\agent-config.json` — the pairing, the pairing code, the port,
+and any extra PKCS#11 module paths. Deliberately *not* beside the executable:
+the installer overwrites its own directory on upgrade, which would cost the
+operator their pairing every time the agent updated. A config left beside the
+exe by a pre-installer build is moved across on first run.
 
 ## Three decisions worth knowing
 
@@ -64,6 +99,7 @@ the ITIDA client impossible to verify.
 
 | Method | Path | Notes |
 |---|---|---|
+| `GET` | `/` | status page: pairing code, paired sites, token state |
 | `GET` | `/v1/ping` | version, loaded modules, unlock state. No pairing needed |
 | `GET` | `/v1/certificates` | paired origins only |
 | `POST` | `/v1/sign` | `{thumbprint, canonical}` → `{signature}`; `409 locked` if the PIN has not been entered |
@@ -96,8 +132,14 @@ used, and closed immediately rather than held.
 
 ## Not done yet
 
-- No tray icon or installer; it runs in a console window.
-- Not tested on macOS — the module paths there are from vendor documentation,
-  not from a machine.
+- **Nothing here has been compiled.** There is no .NET SDK on the ekPOS server
+  and the tokens live on a workstation, so every build and every run has to
+  happen there.
+- Windows only. The macOS module paths in `AgentConfig` came from vendor
+  documentation, never from a machine with a token in it, and the csproj now
+  pins `win-x64`.
+- The installer is unsigned — see *Releasing*.
 - PROXKey signing is untested; only enumeration has been exercised on it.
-- No auto-update.
+- No tray icon. The status page stands in for one, which means the only way to
+  stop the agent is Task Manager.
+- No auto-update: a new version means running the installer again.
