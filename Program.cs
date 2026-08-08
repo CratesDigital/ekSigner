@@ -1,0 +1,207 @@
+using EtaSignAgent;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+var config = AgentConfig.Load();
+var tokens = new TokenService(config.ModulePaths());
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Logging.ClearProviders();
+// Loopback only. Binding 0.0.0.0 would expose a signing oracle to the LAN.
+builder.WebHost.UseUrls($"http://127.0.0.1:{config.Port}");
+builder.Services.AddSingleton(config);
+builder.Services.AddSingleton(tokens);
+
+var app = builder.Build();
+
+// ── CORS + Private Network Access ────────────────────────────────
+//
+// Loopback is a "potentially trustworthy origin", so an HTTPS ekPOS page may
+// call http://127.0.0.1 without mixed-content blocking — which is why the agent
+// needs no certificate and no browser trust prompt.
+//
+// But Chrome's Private Network Access sends
+// `Access-Control-Request-Private-Network: true` on the preflight for a
+// public → loopback request, and REFUSES the call unless the response says
+// `Access-Control-Allow-Private-Network: true`. Omit that one header and the
+// failure is indistinguishable from the agent not running at all.
+app.Use(async (context, next) =>
+{
+    var origin = context.Request.Headers.Origin.ToString();
+
+    if (!string.IsNullOrEmpty(origin) && config.IsPaired(origin))
+    {
+        context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+        context.Response.Headers["Vary"] = "Origin";
+    }
+    context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type";
+    context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
+    context.Response.Headers["Access-Control-Allow-Private-Network"] = "true";
+
+    if (HttpMethods.IsOptions(context.Request.Method))
+    {
+        context.Response.StatusCode = StatusCodes.Status204NoContent;
+        return;
+    }
+
+    await next();
+});
+
+// Anything that touches the token requires a paired origin. Requests with no
+// Origin at all (curl, the agent's own unlock page) are same-machine and are
+// allowed through — the browser is the untrusted caller here, not the shell.
+bool Allowed(HttpContext ctx)
+{
+    var origin = ctx.Request.Headers.Origin.ToString();
+    return string.IsNullOrEmpty(origin) || config.IsPaired(origin);
+}
+
+IResult Forbidden() => Results.Json(
+    new { error = "not_paired", message = "This site is not paired with the signing agent." },
+    statusCode: StatusCodes.Status403Forbidden);
+
+// ── Discovery ────────────────────────────────────────────────────
+
+app.MapGet("/v1/ping", () => Results.Json(new
+{
+    ok       = true,
+    agent    = "ekpos-sign-agent",
+    version  = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0",
+    modules  = tokens.LoadedModules,
+    unlocked = tokens.IsUnlocked,
+    unlocked_until = tokens.UnlockedUntil,
+}));
+
+app.MapGet("/v1/certificates", (HttpContext ctx) =>
+{
+    if (!Allowed(ctx)) return Forbidden();
+
+    try
+    {
+        var certificates = tokens.ListCertificates().Select(c => new
+        {
+            thumbprint = c.Thumbprint,
+            token      = c.TokenLabel,
+            subject    = c.Subject,
+            issuer     = c.Issuer,
+            not_after  = c.NotAfter.ToString("yyyy-MM-dd"),
+            expired    = c.Expired,
+        });
+        return Results.Json(new { ok = true, certificates });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, message = ex.Message }, statusCode: 500);
+    }
+});
+
+// ── Signing ──────────────────────────────────────────────────────
+
+app.MapPost("/v1/sign", async (HttpContext ctx) =>
+{
+    if (!Allowed(ctx)) return Forbidden();
+
+    var request = await ctx.Request.ReadFromJsonAsync<SignRequest>();
+    if (request is null || string.IsNullOrWhiteSpace(request.Canonical) || string.IsNullOrWhiteSpace(request.Thumbprint))
+    {
+        return Results.Json(new { ok = false, message = "thumbprint and canonical are required." }, statusCode: 400);
+    }
+
+    try
+    {
+        // The agent hashes the canonical string itself. ekPOS never sends a
+        // pre-computed digest, which is what removes any question of the data
+        // being hashed twice.
+        var signature = tokens.Sign(request.Thumbprint, request.Canonical);
+        return Results.Json(new { ok = true, signature });
+    }
+    catch (TokenLockedException)
+    {
+        return Results.Json(new
+        {
+            ok = false,
+            error = "locked",
+            unlock_url = $"http://127.0.0.1:{config.Port}/unlock",
+            message = "The signing token is locked. Unlock it and try again.",
+        }, statusCode: StatusCodes.Status409Conflict);
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, message = ex.Message }, statusCode: 500);
+    }
+});
+
+// ── PIN entry, served BY the agent ───────────────────────────────
+//
+// The PIN is typed into a page the agent itself serves on 127.0.0.1, so it
+// never reaches ekPOS's browser context or its servers. That is also why no
+// GUI toolkit is needed, and why this works identically on Windows and macOS.
+
+app.MapGet("/unlock", () => Results.Content(UnlockPage.Html(config), "text/html; charset=utf-8"));
+
+app.MapPost("/v1/unlock", async (HttpContext ctx) =>
+{
+    var request = await ctx.Request.ReadFromJsonAsync<UnlockRequest>();
+    if (request is null || string.IsNullOrWhiteSpace(request.Pin))
+    {
+        return Results.Json(new { ok = false, message = "Enter the token PIN." }, statusCode: 400);
+    }
+
+    try
+    {
+        // One attempt, with the PIN as typed. Never retried: neither token
+        // reports how many attempts remain, so a retry loop can lock a
+        // taxpayer's e-seal permanently.
+        tokens.Unlock(request.Pin, TimeSpan.FromMinutes(config.UnlockMinutes));
+        return Results.Json(new { ok = true, until = tokens.UnlockedUntil });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, message = ex.Message }, statusCode: 400);
+    }
+});
+
+app.MapPost("/v1/lock", () => { tokens.Lock(); return Results.Json(new { ok = true }); });
+
+// ── Pairing ──────────────────────────────────────────────────────
+
+app.MapPost("/v1/pair", async (HttpContext ctx) =>
+{
+    var request = await ctx.Request.ReadFromJsonAsync<PairRequest>();
+    var origin = ctx.Request.Headers.Origin.ToString();
+
+    if (string.IsNullOrEmpty(origin))
+    {
+        return Results.Json(new { ok = false, message = "Pairing must be started from ekPOS." }, statusCode: 400);
+    }
+    if (request is null || request.Code != config.PairingCode)
+    {
+        return Results.Json(new { ok = false, message = "That pairing code is not correct." }, statusCode: 403);
+    }
+
+    config.Pair(origin);
+    Console.WriteLine($"[pair] {origin} is now allowed to request signatures.");
+
+    return Results.Json(new { ok = true, origin });
+});
+
+Console.WriteLine($"""
+    ekPOS signing agent
+      listening : http://127.0.0.1:{config.Port}
+      modules   : {(tokens.LoadedModules.Count == 0 ? "NONE FOUND — is a token driver installed?" : string.Join(", ", tokens.LoadedModules))}
+      paired    : {(config.PairedOrigins.Count == 0 ? "nothing yet" : string.Join(", ", config.PairedOrigins))}
+
+      Pairing code: {config.PairingCode}
+      Enter it in ekPOS under Integrations → ETA → Connection.
+
+      Unlock the token at http://127.0.0.1:{config.Port}/unlock
+    """);
+
+app.Run();
+
+internal sealed record SignRequest(string Thumbprint, string Canonical, string? Summary);
+internal sealed record UnlockRequest(string Pin);
+internal sealed record PairRequest(string Code);
