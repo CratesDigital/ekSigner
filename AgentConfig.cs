@@ -25,10 +25,37 @@ public sealed class AgentConfig
     /// <summary>Extra PKCS#11 module paths, for a driver installed somewhere unusual.</summary>
     public List<string> ExtraModules { get; set; } = new();
 
-    private static string Path => System.IO.Path.Combine(AppContext.BaseDirectory, "agent-config.json");
+    /// <summary>
+    /// The roaming profile, not the install directory. An installer overwrites
+    /// its own directory on upgrade and deletes it on uninstall, so config kept
+    /// beside the executable would cost the operator their pairing and mint a
+    /// new pairing code every time the agent updated.
+    /// </summary>
+    private static string ConfigDir => System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ekPOS");
+
+    private static string Path => System.IO.Path.Combine(ConfigDir, "agent-config.json");
+
+    /// <summary>Where builds that predate the installer kept it — beside the exe.</summary>
+    private static string LegacyPath => System.IO.Path.Combine(AppContext.BaseDirectory, "agent-config.json");
 
     public static AgentConfig Load()
     {
+        // Carry over a config from before the installer, so an operator who has
+        // already paired and chosen a certificate does not have to do it again.
+        if (!File.Exists(Path) && File.Exists(LegacyPath))
+        {
+            try
+            {
+                Directory.CreateDirectory(ConfigDir);
+                File.Move(LegacyPath, Path);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[config] could not carry over {LegacyPath}: {ex.Message}");
+            }
+        }
+
         if (File.Exists(Path))
         {
             try
@@ -56,7 +83,10 @@ public sealed class AgentConfig
     }
 
     public void Save()
-        => File.WriteAllText(Path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+    {
+        Directory.CreateDirectory(ConfigDir);
+        File.WriteAllText(Path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+    }
 
     public bool IsPaired(string? origin)
         => !string.IsNullOrEmpty(origin)
