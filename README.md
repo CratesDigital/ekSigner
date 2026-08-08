@@ -46,6 +46,12 @@ fails unless the response answers `Access-Control-Allow-Private-Network: true`.
 That header is in `Program.cs`. **Remove it and the failure looks exactly like
 the agent not running.**
 
+The same is true of `Access-Control-Allow-Origin`, which is echoed for *every*
+origin rather than only paired ones. Pairing cannot bootstrap otherwise: the
+preflight for `/v1/pair` arrives from an origin that is not yet paired, so
+withholding the header there blocks the very call that would pair it. Access is
+enforced by the pairing check in each handler, not by the CORS headers.
+
 **The PIN is typed into a page the agent serves.** Not into ekPOS. It never
 enters ekPOS's browser context and never reaches its servers. That is also why
 there is no GUI toolkit here and why the same build works on Windows and macOS.

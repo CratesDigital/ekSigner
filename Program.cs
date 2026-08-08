@@ -32,7 +32,13 @@ app.Use(async (context, next) =>
 {
     var origin = context.Request.Headers.Origin.ToString();
 
-    if (!string.IsNullOrEmpty(origin) && config.IsPaired(origin))
+    // Echoed for EVERY origin, paired or not. CORS is not the security boundary
+    // here — `Allowed()` is, and it still refuses an unpaired caller. Gating the
+    // header on pairing made pairing impossible: /v1/pair's own preflight comes
+    // from an origin that is by definition not yet paired, so the browser
+    // blocked it before the handler could record anything, and blocked /v1/ping
+    // for the same reason — which made a running agent look like an absent one.
+    if (!string.IsNullOrEmpty(origin))
     {
         context.Response.Headers["Access-Control-Allow-Origin"] = origin;
         context.Response.Headers["Vary"] = "Origin";
