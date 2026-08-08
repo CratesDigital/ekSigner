@@ -6,11 +6,29 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>EtaSignAgent</RootNamespace>
     <AssemblyName>ekpos-sign-agent</AssemblyName>
-    <Version>0.1.0</Version>
+    <Version>1.0.0</Version>
     <!-- Must match the vendor PKCS#11 module: a 64-bit process cannot load a
          32-bit DLL. Both verified modules are 64-bit. -->
     <PlatformTarget>x64</PlatformTarget>
     <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- No console window. The agent starts at login and runs all day; a black
+         terminal sitting on the taskbar invites someone to close it. The
+         pairing code and token state live on the agent's own page instead —
+         see StatusPage.cs. -->
+    <OutputType>WinExe</OutputType>
+
+    <!-- Publish defaults, so releasing is `dotnet publish -c Release`.
+         Self-contained because a tenant cannot be asked to install a .NET
+         runtime first, and single-file so the installer ships one binary.
+         Windows-only by decision: the macOS PKCS#11 paths in AgentConfig came
+         from vendor documentation, never from a machine with a token in it. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <!-- Not trimmed: minimal APIs and System.Text.Json resolve types by
+         reflection, and a trimmed build fails at runtime, not at build time. -->
+    <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
 
   <ItemGroup>

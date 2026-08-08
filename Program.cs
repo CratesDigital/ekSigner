@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using EtaSignAgent;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -148,6 +149,11 @@ app.MapPost("/v1/sign", async (HttpContext ctx) =>
 
 app.MapGet("/unlock", () => Results.Content(UnlockPage.Html(config), "text/html; charset=utf-8"));
 
+// The agent's own front page: pairing code, token state, unlock link. An
+// installed agent has no console to print the pairing code to, so this page is
+// where the operator reads it.
+app.MapGet("/", () => Results.Content(StatusPage.Html(config, tokens), "text/html; charset=utf-8"));
+
 app.MapPost("/v1/unlock", async (HttpContext ctx) =>
 {
     var request = await ctx.Request.ReadFromJsonAsync<UnlockRequest>();
@@ -205,6 +211,27 @@ Console.WriteLine($"""
 
       Unlock the token at http://127.0.0.1:{config.Port}/unlock
     """);
+
+// Show the front page once, on the run that follows installation — that is the
+// run where the operator still has to read a pairing code and enter a PIN.
+// After that the agent starts at every login and must stay quiet; an app that
+// opens a browser tab each morning gets uninstalled.
+if (config.PairedOrigins.Count == 0)
+{
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        try
+        {
+            // UseShellExecute is what hands the URL to the default browser;
+            // without it .NET tries to execute the URL as a program.
+            Process.Start(new ProcessStartInfo($"http://127.0.0.1:{config.Port}/") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[start] could not open a browser: {ex.Message}");
+        }
+    });
+}
 
 app.Run();
 
