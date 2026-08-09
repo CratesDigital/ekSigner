@@ -72,7 +72,7 @@ IResult Forbidden() => Results.Json(
 
 // ── Discovery ────────────────────────────────────────────────────
 
-app.MapGet("/v1/ping", () => Results.Json(new
+app.MapGet("/v1/ping", (HttpContext ctx) => Results.Json(new
 {
     ok       = true,
     agent    = "ekpos-sign-agent",
@@ -80,6 +80,10 @@ app.MapGet("/v1/ping", () => Results.Json(new
     modules  = tokens.LoadedModules,
     unlocked = tokens.IsUnlocked,
     unlocked_until = tokens.UnlockedUntil,
+    // Whether THIS caller is paired. Without it ekPOS cannot tell an already
+    // paired site from a fresh one, so it had to show the pairing box forever
+    // and leave the operator guessing whether they had done it.
+    paired   = config.IsPaired(ctx.Request.Headers.Origin.ToString()),
 }));
 
 app.MapGet("/v1/certificates", (HttpContext ctx) =>
