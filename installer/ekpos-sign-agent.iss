@@ -61,7 +61,10 @@ Name: "ar"; MessagesFile: "compiler:Languages\Arabic.isl"
 ; The whole publish folder rather than the single exe by name: whether
 ; self-contained publish emits one file or a handful depends on the SDK
 ; version, and a missing runtime DLL fails at launch with nothing to read.
-Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb"
+; Excludes are belt-and-braces: the csproj already suppresses web.config, but
+; the IIS shim is emitted by the Web SDK's own targets and an SDK update could
+; put either back. Neither belongs in a desktop install.
+Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,web.config,aspnetcorev2_inprocess.dll"
 
 [Icons]
 Name: "{group}\{#AppName}";        Filename: "{app}\{#ExeName}"

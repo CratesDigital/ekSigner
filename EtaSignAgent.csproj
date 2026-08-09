@@ -29,6 +29,10 @@
     <!-- Not trimmed: minimal APIs and System.Text.Json resolve types by
          reflection, and a trimmed build fails at runtime, not at build time. -->
     <PublishTrimmed>false</PublishTrimmed>
+    <!-- The Web SDK publishes IIS hosting assets — web.config and the ANCM
+         shim. This is a desktop agent that will never sit behind IIS, and a
+         web.config in a shop's install folder is only a thing to wonder about. -->
+    <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
   </PropertyGroup>
 
   <ItemGroup>
