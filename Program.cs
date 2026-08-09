@@ -233,7 +233,24 @@ if (config.PairedOrigins.Count == 0)
     });
 }
 
-app.Run();
+try
+{
+    app.Run();
+}
+catch (Exception ex)
+{
+    // Almost always the port: something else is on 8420, or a previous agent is
+    // still resident. Without this the process would exit here having shown the
+    // operator absolutely nothing.
+    StartupError.Report(
+        $"The signing agent could not start on port {config.Port}.\n\n"
+        + $"{ex.Message}\n\n"
+        + "Another program may be using that port. Change \"Port\" in\n"
+        + "%APPDATA%\\ekPOS\\agent-config.json and start the agent again.");
+    return 1;
+}
+
+return 0;
 
 internal sealed record SignRequest(string Thumbprint, string Canonical, string? Summary);
 internal sealed record UnlockRequest(string Pin);
