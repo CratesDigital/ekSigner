@@ -7,6 +7,32 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 var config = AgentConfig.Load();
+
+// Only one agent per user session. Two would contend for the token — vendor
+// PKCS#11 modules take exclusive access — and the second would fail to bind
+// anyway.
+//
+// Starting an agent that is already started is a request to SEE it, not an
+// error: the operator clicked the shortcut because they wanted the pairing code
+// or the unlock page. So show them that, and leave quietly. The startup error
+// dialog stays for the case it was written for — something else on the port.
+using var instanceLock = new Mutex(initiallyOwned: true, @"Local\ekpos-sign-agent", out var isFirstInstance);
+if (!isFirstInstance)
+{
+    try
+    {
+        Process.Start(new ProcessStartInfo($"http://127.0.0.1:{config.Port}/") { UseShellExecute = true });
+    }
+    catch
+    {
+        // Nothing to report to: no console, and a dialog here would be the very
+        // thing this replaced.
+    }
+    return 0;
+}
+
+Autostart.Apply(config);
+
 var tokens = new TokenService(config.ModulePaths());
 
 var builder = WebApplication.CreateBuilder(args);
@@ -237,15 +263,18 @@ if (config.PairedOrigins.Count == 0)
     });
 }
 
+// Kestrel runs in the background and the tray owns the foreground: NotifyIcon
+// needs a message loop, and the loop has to be the thing that blocks, otherwise
+// the menu never responds.
 try
 {
-    app.Run();
+    await app.StartAsync();
 }
 catch (Exception ex)
 {
-    // Almost always the port: something else is on 8420, or a previous agent is
-    // still resident. Without this the process would exit here having shown the
-    // operator absolutely nothing.
+    // Almost always the port. A second copy of the agent can no longer get here
+    // — the mutex above sends it to the status page instead — so this really
+    // does mean another program has 8420.
     StartupError.Report(
         $"The signing agent could not start on port {config.Port}.\n\n"
         + $"{ex.Message}\n\n"
@@ -254,6 +283,12 @@ catch (Exception ex)
     return 1;
 }
 
+// Fire-and-forget rather than blocking the UI thread on StopAsync; the wait
+// happens below, off the message loop.
+using var tray = new TrayIcon(config, tokens, () => _ = app.StopAsync());
+tray.Run();
+
+await app.WaitForShutdownAsync();
 return 0;
 
 internal sealed record SignRequest(string Thumbprint, string Canonical, string? Summary);

@@ -29,15 +29,37 @@ the PIN on every signature, and it is Windows-only. See
    It stays unlocked for 60 minutes by default.
 4. **Sign** from ekPOS → Submissions.
 
+## While it is running
+
+The agent sits in the notification area. Its icon is the only visible sign a
+windowless program is running, and its tooltip shows whether the token is
+unlocked. Right-click for:
+
+| | |
+|---|---|
+| **Open agent page** | pairing code, paired sites, token state (also double-click) |
+| **Unlock token** | the PIN page |
+| **Run when Windows starts** | on by default; the operator can turn it off |
+| **Quit** | stops the agent |
+
+Autostart is the `HKCU\...\CurrentVersion\Run` key, written by the agent rather
+than by the installer, because the operator has to be able to change it. **Do
+not add a Startup-folder shortcut back.** Having both is what made the agent
+always already running, so that launching it by hand raised an error dialog.
+
+Starting a second copy is not an error either — the first instance holds a named
+mutex, and the second opens the status page and exits.
+
 ## Run from source
 
 ```powershell
 dotnet run
 ```
 
-Same thing without the installer: listens on `http://127.0.0.1:8420` and opens
-its page on first run. The build is windowless, so `Console.WriteLine` output
-goes nowhere — read the state off the page instead.
+Same thing without the installer: listens on `http://127.0.0.1:8420`, puts an
+icon in the tray, and opens its page on first run. The build is windowless, so
+`Console.WriteLine` output goes nowhere — read the state off the tray tooltip or
+the page.
 
 ## Releasing
 
@@ -140,6 +162,4 @@ used, and closed immediately rather than held.
   pins `win-x64`.
 - The installer is unsigned — see *Releasing*.
 - PROXKey signing is untested; only enumeration has been exercised on it.
-- No tray icon. The status page stands in for one, which means the only way to
-  stop the agent is Task Manager.
 - No auto-update: a new version means running the installer again.

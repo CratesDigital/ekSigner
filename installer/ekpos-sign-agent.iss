@@ -1,4 +1,4 @@
-; Inno Setup script for the ekPOS Signing Agent.
+﻿; Inno Setup script for the ekPOS Signing Agent.
 ;
 ; Build the payload first, from tools/eta-sign-agent:
 ;     dotnet publish -c Release
@@ -25,9 +25,9 @@
 #endif
 
 #define AppName    "ekPOS Signing Agent"
-#define Publisher  "Crates Digital"
+#define Publisher  "Eickter Software & Supplies"
 #define ExeName    "ekpos-sign-agent.exe"
-#define PublishDir "..\bin\Release\net8.0\win-x64\publish"
+#define PublishDir "..\bin\Release\net8.0-windows\win-x64\publish"
 
 [Setup]
 ; Never change AppId — it is how Windows recognises an upgrade rather than a
@@ -36,6 +36,17 @@ AppId={{8F3C1A72-6D4E-4B58-9E2A-1C7F5D0B3A94}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#Publisher}
+AppPublisherURL=https://eickter.com
+AppSupportURL=mailto:info@eickter.com
+AppCopyright=© 2026 Eickter Software & Supplies
+; Stamped into the setup executable itself, so the installer a tenant downloads
+; names its publisher in Properties → Details rather than showing a blank pane.
+VersionInfoCompany={#Publisher}
+VersionInfoProductName={#AppName}
+VersionInfoDescription=ekPOS Signing Agent Setup
+VersionInfoCopyright=© 2026 Eickter Software & Supplies
+VersionInfoVersion={#AppVersion}
+SetupIconFile=..\ekpos.ico
 DefaultDirName={localappdata}\Programs\ekPOS Signing Agent
 DefaultGroupName={#AppName}
 OutputDir=..\dist
@@ -69,9 +80,21 @@ Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 [Icons]
 Name: "{group}\{#AppName}";        Filename: "{app}\{#ExeName}"
 Name: "{group}\Signing agent page"; Filename: "http://127.0.0.1:8420/"
-; Autostart. This is the whole point of installing rather than running by hand:
-; the operator signs in and the agent is already there.
-Name: "{userstartup}\{#AppName}";  Filename: "{app}\{#ExeName}"
+; No {userstartup} shortcut. The agent manages autostart itself through the
+; HKCU Run key so the operator can turn it off from the tray menu — and having
+; both mechanisms is what made the agent always already running, so that every
+; manual launch became a second instance and raised an error dialog.
+
+[InstallDelete]
+; Remove the shortcut installed by 1.1.0 and earlier, now that the Run key has
+; taken over. Left behind it would start a second copy at every login.
+Type: files; Name: "{userstartup}\{#AppName}.lnk"
+
+[Registry]
+; The agent writes this itself, so nothing is created here. It is declared only
+; so uninstalling takes it away — left behind, Windows would try to launch a
+; deleted executable at every login.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "ekPOS Signing Agent"; ValueType: none; Flags: uninsdeletevalue
 
 [Run]
 ; First run opens the agent's page by itself, which is where the pairing code

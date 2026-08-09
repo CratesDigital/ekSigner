@@ -16,6 +16,14 @@ public sealed class AgentConfig
     /// <summary>Minutes a PIN stays valid before it must be entered again.</summary>
     public int UnlockMinutes { get; set; } = 60;
 
+    /// <summary>
+    /// Start with Windows. On by default — an agent that has to be launched by
+    /// hand every morning is one that will be missing when someone tries to
+    /// sign. Kept here rather than read back from the registry so an operator
+    /// who deliberately turns it off stays off across upgrades.
+    /// </summary>
+    public bool RunAtLogin { get; set; } = true;
+
     /// <summary>ekPOS origins allowed to request signatures, e.g. https://ekpos.withcrates.com</summary>
     public List<string> PairedOrigins { get; set; } = new();
 
