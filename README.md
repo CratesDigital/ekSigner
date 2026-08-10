@@ -72,15 +72,25 @@ git push origin sign-agent-v1.0.0
 compiles `installer/ekpos-sign-agent.iss`, and attaches the installer to a
 GitHub release. It needs a Windows runner — both the publish and Inno Setup do.
 
-Two things that still need a decision:
+### Getting it to the shops
 
-- **The installer is unsigned**, so Windows SmartScreen warns on first
-  download. The people installing this are shop staff, who are right to be
-  suspicious of that warning; an OV/EV certificate and a signing step in the
-  workflow would remove it.
-- **The repo is private**, so a GitHub release asset answers a tenant's browser
-  with a 404. Copy the installer somewhere public and point
-  `ETA_AGENT_DOWNLOAD_URL` at it, or the download button stays hidden.
+The repo is private, so a GitHub release asset answers a tenant's browser with
+a 404. Copy the installer onto the ekPOS host instead:
+
+```bash
+scp ekpos-sign-agent-setup.exe deploy@HOST:/var/www/ekpos/public/downloads/
+```
+
+That path is where `config('eta.agent.download_path')` looks, and the download
+button in **ETA → Setup → Document signing** appears as soon as the file is
+really there — no config change, no restart. Remove the file and the button
+goes away rather than leaving a link to a 404. `ETA_AGENT_DOWNLOAD_URL`
+overrides the location entirely if the installer is served from somewhere else.
+
+Still open: **the installer is unsigned**, so Windows SmartScreen warns on
+first download. The people installing this are shop staff, who are right to be
+suspicious of that warning; an OV/EV certificate and a signing step in the
+workflow would remove it.
 
 ## Where the config lives
 
