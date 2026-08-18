@@ -26,7 +26,7 @@ internal static class StartupError
         try
         {
             var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ekPOS");
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ekSign");
             Directory.CreateDirectory(dir);
             File.AppendAllText(
                 Path.Combine(dir, "agent-error.log"),

@@ -39,7 +39,7 @@ public static class EtaCades
         new("1.2.840.113549.1.7.5");
 
     /// <param name="canonical">
-    /// The canonical serialization produced by ekPOS's EtaDocumentSerializer.
+    /// The canonical serialization produced by the caller's EtaDocumentSerializer.
     /// Hashed here as UTF-8 — this is the only place the document is digested,
     /// which is what removes the double-hash ambiguity of the ITIDA client.
     /// </param>

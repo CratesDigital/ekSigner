@@ -46,7 +46,7 @@ var app = builder.Build();
 
 // ── CORS + Private Network Access ────────────────────────────────
 //
-// Loopback is a "potentially trustworthy origin", so an HTTPS ekPOS page may
+// Loopback is a "potentially trustworthy origin", so an HTTPS page may
 // call http://127.0.0.1 without mixed-content blocking — which is why the agent
 // needs no certificate and no browser trust prompt.
 //
@@ -106,7 +106,7 @@ app.MapGet("/v1/ping", (HttpContext ctx) => Results.Json(new
     modules  = tokens.LoadedModules,
     unlocked = tokens.IsUnlocked,
     unlocked_until = tokens.UnlockedUntil,
-    // Whether THIS caller is paired. Without it ekPOS cannot tell an already
+    // Whether THIS caller is paired. Without it a site cannot tell an already
     // paired site from a fresh one, so it had to show the pairing box forever
     // and leave the operator guessing whether they had done it.
     paired   = config.IsPaired(ctx.Request.Headers.Origin.ToString()),
@@ -149,7 +149,7 @@ app.MapPost("/v1/sign", async (HttpContext ctx) =>
 
     try
     {
-        // The agent hashes the canonical string itself. ekPOS never sends a
+        // The agent hashes the canonical string itself. A caller never sends a
         // pre-computed digest, which is what removes any question of the data
         // being hashed twice.
         var signature = tokens.Sign(request.Thumbprint, request.Canonical);
@@ -174,7 +174,7 @@ app.MapPost("/v1/sign", async (HttpContext ctx) =>
 // ── PIN entry, served BY the agent ───────────────────────────────
 //
 // The PIN is typed into a page the agent itself serves on 127.0.0.1, so it
-// never reaches ekPOS's browser context or its servers. That is also why no
+// never reaches the calling page or its servers. That is also why no
 // GUI toolkit is needed, and why this works identically on Windows and macOS.
 
 app.MapGet("/unlock", () => Results.Content(UnlockPage.Html(config), "text/html; charset=utf-8"));
@@ -217,7 +217,7 @@ app.MapPost("/v1/pair", async (HttpContext ctx) =>
 
     if (string.IsNullOrEmpty(origin))
     {
-        return Results.Json(new { ok = false, message = "Pairing must be started from ekPOS." }, statusCode: 400);
+        return Results.Json(new { ok = false, message = "Pairing must be started from the site you are pairing with." }, statusCode: 400);
     }
     if (request is null || request.Code != config.PairingCode)
     {
@@ -231,13 +231,13 @@ app.MapPost("/v1/pair", async (HttpContext ctx) =>
 });
 
 Console.WriteLine($"""
-    ekPOS signing agent
+    ekSign
       listening : http://127.0.0.1:{config.Port}
       modules   : {(tokens.LoadedModules.Count == 0 ? "NONE FOUND — is a token driver installed?" : string.Join(", ", tokens.LoadedModules))}
       paired    : {(config.PairedOrigins.Count == 0 ? "nothing yet" : string.Join(", ", config.PairedOrigins))}
 
       Pairing code: {config.PairingCode}
-      Enter it in ekPOS under Integrations → ETA → Connection.
+      Enter it on the site you are pairing with, on its ETA settings page.
 
       Unlock the token at http://127.0.0.1:{config.Port}/unlock
     """);
@@ -279,7 +279,7 @@ catch (Exception ex)
         $"The signing agent could not start on port {config.Port}.\n\n"
         + $"{ex.Message}\n\n"
         + "Another program may be using that port. Change \"Port\" in\n"
-        + "%APPDATA%\\ekPOS\\agent-config.json and start the agent again.");
+        + "%APPDATA%\\ekSign\\agent-config.json and start the agent again.");
     return 1;
 }
 

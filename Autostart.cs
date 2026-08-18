@@ -65,7 +65,7 @@ internal static class Autostart
                 var path = ExecutablePath;
                 if (string.IsNullOrEmpty(path)) return false;
                 // Quoted: the install path contains spaces, and an unquoted
-                // value would have Windows try to run "C:\Users\...\ekPOS".
+                // value would have Windows try to run "C:\Users\...\ekSign".
                 key.SetValue(ValueName, $"\"{path}\"");
                 key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
             }

@@ -5,7 +5,7 @@ namespace EtaSignAgent;
 ///
 /// Self-contained on purpose: the PIN is typed into a page the agent itself
 /// serves, posted straight back to the agent, and never leaves the machine. No
-/// ekPOS script runs here and no external asset is loaded, so nothing can read
+/// No caller script runs here and no external asset is loaded, so nothing can read
 /// the field but the agent.
 /// </summary>
 internal static class UnlockPage
@@ -50,7 +50,7 @@ internal static class UnlockPage
         <body>
           <div class="card">
             <h1>Unlock signing token</h1>
-            <p>Your PIN is checked by the agent on this computer. It is not sent to ekPOS.</p>
+            <p>Your PIN is checked by the agent on this computer. It is never sent anywhere.</p>
 
             <label for="pin">Token PIN</label>
             <input id="pin" type="password" inputmode="numeric" autocomplete="off" autofocus>
@@ -82,7 +82,7 @@ internal static class UnlockPage
                 const d = await r.json();
                 msg.className = 'msg ' + (d.ok ? 'ok' : 'err');
                 msg.textContent = d.ok
-                  ? 'Unlocked. You can close this tab and sign in ekPOS.'
+                  ? 'Unlocked. You can close this tab and go back to signing.'
                   : (d.message || 'The PIN was not accepted.');
                 msg.style.display = 'block';
                 if (d.ok) pin.value = '';

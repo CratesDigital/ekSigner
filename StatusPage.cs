@@ -11,7 +11,7 @@ namespace EtaSignAgent;
 /// window, so the code has to live somewhere the operator can actually reach.
 /// The browser is that place — it needs no GUI toolkit and no tray icon.
 ///
-/// Self-contained like the unlock page: no external asset, nothing from ekPOS.
+/// Self-contained like the unlock page: no external asset, nothing from a caller.
 /// </summary>
 internal static class StatusPage
 {
@@ -24,7 +24,7 @@ internal static class StatusPage
                   m => "<li>" + Esc(System.IO.Path.GetFileName(m)) + "</li>")) + "</ul>";
 
         var paired = config.PairedOrigins.Count == 0
-            ? "<p class=\"muted\">No site paired yet — enter the code above in ekPOS.</p>"
+            ? "<p class=\"muted\">No site paired yet — enter the code above on the site you want to sign from.</p>"
             : "<ul class=\"list\">" + string.Join("", config.PairedOrigins.Select(
                   o => "<li>" + Esc(o) + "</li>")) + "</ul>";
 
@@ -82,7 +82,7 @@ internal static class StatusPage
                 <h2>Pairing code</h2>
                 <div class="code">{{config.PairingCode}}</div>
                 <p style="margin-top:10px;">
-                  In ekPOS, open <strong>Integrations &rarr; ETA &rarr; Connection</strong> and enter this
+                  On the site you are pairing with, open its <strong>ETA settings</strong> and enter this
                   code. Only a site you pair can ask this agent to sign.
                 </p>
 
@@ -97,7 +97,7 @@ internal static class StatusPage
                   <button class="btn" id="lockNow" style="display:none;">Lock now</button>
                 </div>
                 <p style="margin-top:10px;">
-                  The PIN is entered here, on this computer, and never reaches ekPOS.
+                  The PIN is entered here, on this computer, and never leaves it.
                   It stays unlocked for {{config.UnlockMinutes}} minutes.
                 </p>
 
