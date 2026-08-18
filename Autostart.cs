@@ -17,7 +17,15 @@ namespace EtaSignAgent;
 internal static class Autostart
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "ekPOS Signing Agent";
+    private const string ValueName = "ekSign";
+
+    /// <summary>
+    /// What the value was called while the agent was named for one product.
+    /// Removed whenever the new one is written: left behind, Windows starts the
+    /// old executable too, and the second instance greets the operator with an
+    /// error dialog.
+    /// </summary>
+    private const string LegacyValueName = "ekPOS Signing Agent";
 
     /// <summary>
     /// The running executable. Under single-file publish, Environment.ProcessPath
@@ -32,7 +40,9 @@ internal static class Autostart
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKey);
-            return key?.GetValue(ValueName) is string value && !string.IsNullOrWhiteSpace(value);
+
+            return (key?.GetValue(ValueName) ?? key?.GetValue(LegacyValueName)) is string value
+                && !string.IsNullOrWhiteSpace(value);
         }
         catch
         {
@@ -57,10 +67,12 @@ internal static class Autostart
                 // Quoted: the install path contains spaces, and an unquoted
                 // value would have Windows try to run "C:\Users\...\ekPOS".
                 key.SetValue(ValueName, $"\"{path}\"");
+                key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
             }
             else
             {
                 key.DeleteValue(ValueName, throwOnMissingValue: false);
+                key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
             }
 
             return true;

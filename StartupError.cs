@@ -39,7 +39,7 @@ internal static class StartupError
 
         if (OperatingSystem.IsWindows())
         {
-            try { MessageBoxW(IntPtr.Zero, message, "ekPOS Signing Agent", IconError); }
+            try { MessageBoxW(IntPtr.Zero, message, "ekSign", IconError); }
             catch { /* nothing left to fall back to */ }
         }
     }

@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace EtaSignAgent;
 
 /// <summary>
-/// Agent settings, persisted next to the executable.
+/// Agent settings, persisted in the operator's roaming profile.
 ///
 /// The paired origins are the security boundary: an agent that signs whatever
 /// it is asked, from wherever, is a forgery service. Nothing is signed for an
@@ -24,10 +24,16 @@ public sealed class AgentConfig
     /// </summary>
     public bool RunAtLogin { get; set; } = true;
 
-    /// <summary>ekPOS origins allowed to request signatures, e.g. https://ekpos.withcrates.com</summary>
+    /// <summary>
+    /// Origins allowed to request signatures, e.g. https://ekpos.withcrates.com.
+    ///
+    /// A list, and deliberately more than one: the agent is not tied to a single
+    /// product. One workstation's token signs for whichever sites its operator
+    /// has paired — ekPOS and AGNC side by side, at an agency that runs both.
+    /// </summary>
     public List<string> PairedOrigins { get; set; } = new();
 
-    /// <summary>Shown in the agent's own window; the operator types it into ekPOS once.</summary>
+    /// <summary>Shown in the agent's own window; the operator types it into the site once.</summary>
     public string PairingCode { get; set; } = "";
 
     /// <summary>Extra PKCS#11 module paths, for a driver installed somewhere unusual.</summary>
@@ -40,27 +46,42 @@ public sealed class AgentConfig
     /// new pairing code every time the agent updated.
     /// </summary>
     private static string ConfigDir => System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ekPOS");
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ekSign");
 
     private static string Path => System.IO.Path.Combine(ConfigDir, "agent-config.json");
 
-    /// <summary>Where builds that predate the installer kept it — beside the exe.</summary>
-    private static string LegacyPath => System.IO.Path.Combine(AppContext.BaseDirectory, "agent-config.json");
+    /// <summary>
+    /// Where earlier builds kept it: beside the exe before there was an
+    /// installer, then under %APPDATA%\ekPOS while the agent was named for one
+    /// product. Both are carried over — an operator upgrading should not have to
+    /// pair again, and being asked to would look like the agent had forgotten
+    /// their token.
+    /// </summary>
+    private static IEnumerable<string> LegacyPaths => new[]
+    {
+        System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "ekPOS", "agent-config.json"),
+        System.IO.Path.Combine(AppContext.BaseDirectory, "agent-config.json"),
+    };
 
     public static AgentConfig Load()
     {
-        // Carry over a config from before the installer, so an operator who has
-        // already paired and chosen a certificate does not have to do it again.
-        if (!File.Exists(Path) && File.Exists(LegacyPath))
+        foreach (var legacy in LegacyPaths)
         {
+            if (File.Exists(Path) || !File.Exists(legacy))
+            {
+                continue;
+            }
+
             try
             {
                 Directory.CreateDirectory(ConfigDir);
-                File.Move(LegacyPath, Path);
+                File.Move(legacy, Path);
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[config] could not carry over {LegacyPath}: {ex.Message}");
+                Console.Error.WriteLine($"[config] could not carry over {legacy}: {ex.Message}");
             }
         }
 

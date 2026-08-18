@@ -1,4 +1,4 @@
-# ekPOS Signing Agent
+# ekSign
 
 Replaces the PowerShell spike. Runs on the machine holding the e-seal token,
 reads the vendor PKCS#11 module directly, and signs ETA documents on request
@@ -18,7 +18,7 @@ the PIN on every signature, and it is Windows-only. See
 
 ## Set-up, once per workstation
 
-1. **Install.** Download `ekPOS-Signing-Agent-Setup.exe` — the Connection tab
+1. **Install.** Download `ekSign-Setup.exe` — the Connection tab
    offers it — and run it. No administrator rights and nothing to configure; it
    installs under the user's own profile and starts at every login from then on.
 2. **Pair it.** The agent's page opens by itself after installing, showing a
@@ -69,7 +69,7 @@ git push origin sign-agent-v1.0.0
 ```
 
 `.github/workflows/sign-agent.yml` publishes self-contained for `win-x64`,
-compiles `installer/ekpos-sign-agent.iss`, and attaches the installer to a
+compiles `installer/eksign.iss`, and attaches the installer to a
 GitHub release. It needs a Windows runner — both the publish and Inno Setup do.
 
 ### Getting it to the shops
@@ -78,7 +78,7 @@ The repo is private, so a GitHub release asset answers a tenant's browser with
 a 404. Copy the installer onto the ekPOS host instead:
 
 ```bash
-scp ekpos-sign-agent-setup.exe deploy@HOST:/var/www/ekpos/public/downloads/
+scp ekSign-Setup.exe deploy@HOST:/var/www/ekpos/public/downloads/
 ```
 
 That path is where `config('eta.agent.download_path')` looks, and the download

@@ -73,7 +73,7 @@ internal sealed class TrayIcon : IDisposable
             Icon = LoadIcon(),
             ContextMenuStrip = menu,
             Visible = true,
-            Text = "ekPOS Signing Agent",
+            Text = "ekSign",
         };
         _icon.DoubleClick += (_, _) => Open("/");
 
@@ -128,7 +128,7 @@ internal sealed class TrayIcon : IDisposable
 
             MessageBox.Show(
                 "Windows would not let the startup setting be changed.",
-                "ekPOS Signing Agent", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                "ekSign", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
@@ -158,7 +158,7 @@ internal sealed class TrayIcon : IDisposable
             state = "token locked";
         }
 
-        _icon.Text = $"ekPOS Signing Agent — {state}";
+        _icon.Text = $"ekSign — {state}";
     }
 
     private void Open(string path)

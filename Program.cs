@@ -16,7 +16,7 @@ var config = AgentConfig.Load();
 // error: the operator clicked the shortcut because they wanted the pairing code
 // or the unlock page. So show them that, and leave quietly. The startup error
 // dialog stays for the case it was written for — something else on the port.
-using var instanceLock = new Mutex(initiallyOwned: true, @"Local\ekpos-sign-agent", out var isFirstInstance);
+using var instanceLock = new Mutex(initiallyOwned: true, @"Local\eksign", out var isFirstInstance);
 if (!isFirstInstance)
 {
     try
@@ -101,7 +101,7 @@ IResult Forbidden() => Results.Json(
 app.MapGet("/v1/ping", (HttpContext ctx) => Results.Json(new
 {
     ok       = true,
-    agent    = "ekpos-sign-agent",
+    agent    = "eksign",
     version  = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0",
     modules  = tokens.LoadedModules,
     unlocked = tokens.IsUnlocked,

@@ -1,11 +1,11 @@
-﻿; Inno Setup script for the ekPOS Signing Agent.
+﻿; Inno Setup script for the ekSign.
 ;
 ; Build the payload first, from tools/eta-sign-agent:
 ;     dotnet publish -c Release
 ; then compile this script:
-;     iscc installer\ekpos-sign-agent.iss
+;     iscc installer\eksign.iss
 ;
-; Produces one ekPOS-Signing-Agent-Setup.exe: double-click, Install, Finish.
+; Produces one ekSign-Setup.exe: double-click, Install, Finish.
 ;
 ; Two choices are deliberate and worth not undoing:
 ;
@@ -24,9 +24,9 @@
   #define AppVersion "1.0.0"
 #endif
 
-#define AppName    "ekPOS Signing Agent"
+#define AppName    "ekSign"
 #define Publisher  "Eickter Software & Supplies"
-#define ExeName    "ekpos-sign-agent.exe"
+#define ExeName    "eksign.exe"
 #define PublishDir "..\bin\Release\net8.0-windows\win-x64\publish"
 
 [Setup]
@@ -43,14 +43,14 @@ AppCopyright=© 2026 Eickter Software & Supplies
 ; names its publisher in Properties → Details rather than showing a blank pane.
 VersionInfoCompany={#Publisher}
 VersionInfoProductName={#AppName}
-VersionInfoDescription=ekPOS Signing Agent Setup
+VersionInfoDescription=ekSign Setup
 VersionInfoCopyright=© 2026 Eickter Software & Supplies
 VersionInfoVersion={#AppVersion}
-SetupIconFile=..\ekpos.ico
-DefaultDirName={localappdata}\Programs\ekPOS Signing Agent
+SetupIconFile=..\eksign.ico
+DefaultDirName={localappdata}\Programs\ekSign
 DefaultGroupName={#AppName}
 OutputDir=..\dist
-OutputBaseFilename=ekPOS-Signing-Agent-Setup
+OutputBaseFilename=ekSign-Setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -89,12 +89,21 @@ Name: "{group}\Signing agent page"; Filename: "http://127.0.0.1:8420/"
 ; Remove the shortcut installed by 1.1.0 and earlier, now that the Run key has
 ; taken over. Left behind it would start a second copy at every login.
 Type: files; Name: "{userstartup}\{#AppName}.lnk"
+Type: files; Name: "{userstartup}\ekPOS Signing Agent.lnk"
+; And the executable from before the agent was renamed. AppId is unchanged, so
+; this is an upgrade in place — Inno leaves files it did not install itself, and
+; the old exe left in the directory is one the operator can still launch.
+Type: files; Name: "{app}\ekpos-sign-agent.exe"
 
 [Registry]
 ; The agent writes this itself, so nothing is created here. It is declared only
 ; so uninstalling takes it away — left behind, Windows would try to launch a
 ; deleted executable at every login.
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "ekPOS Signing Agent"; ValueType: none; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "ekSign"; ValueType: none; Flags: uninsdeletevalue
+; The name it went by before the rename. The agent clears this itself when it
+; next writes its own value, but an upgrade that is never launched again would
+; leave Windows starting a deleted executable at every login.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "ekPOS Signing Agent"; ValueType: none; Flags: deletevalue uninsdeletevalue
 
 [Run]
 ; First run opens the agent's page by itself, which is where the pairing code
@@ -114,8 +123,13 @@ begin
   // cannot find it, because a windowless process has no window to close.
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im {#ExeName}', '',
        SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // Including the name it had before the rename, which is what is running on
+  // every machine that installed the agent before this version.
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im ekpos-sign-agent.exe', '',
+       SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Result := '';
 end;
 
-// agent-config.json lives in %APPDATA%\ekPOS and is left alone on uninstall,
-// so reinstalling keeps the pairing and the chosen certificate.
+// agent-config.json lives in %APPDATA%\ekSign and is left alone on uninstall,
+// so reinstalling keeps the pairing and the chosen certificate. A config left
+// under the old %APPDATA%\ekPOS is carried over by the agent on first run.
