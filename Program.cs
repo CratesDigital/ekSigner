@@ -16,7 +16,7 @@ var config = AgentConfig.Load();
 // error: the operator clicked the shortcut because they wanted the pairing code
 // or the unlock page. So show them that, and leave quietly. The startup error
 // dialog stays for the case it was written for — something else on the port.
-using var instanceLock = new Mutex(initiallyOwned: true, @"Local\eksign", out var isFirstInstance);
+using var instanceLock = new Mutex(initiallyOwned: true, @"Local\eksigner", out var isFirstInstance);
 if (!isFirstInstance)
 {
     try
@@ -101,7 +101,7 @@ IResult Forbidden() => Results.Json(
 app.MapGet("/v1/ping", (HttpContext ctx) => Results.Json(new
 {
     ok       = true,
-    agent    = "eksign",
+    agent    = "eksigner",
     version  = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0",
     modules  = tokens.LoadedModules,
     unlocked = tokens.IsUnlocked,
@@ -231,7 +231,7 @@ app.MapPost("/v1/pair", async (HttpContext ctx) =>
 });
 
 Console.WriteLine($"""
-    ekSign
+    ekSigner
       listening : http://127.0.0.1:{config.Port}
       modules   : {(tokens.LoadedModules.Count == 0 ? "NONE FOUND — is a token driver installed?" : string.Join(", ", tokens.LoadedModules))}
       paired    : {(config.PairedOrigins.Count == 0 ? "nothing yet" : string.Join(", ", config.PairedOrigins))}
@@ -279,7 +279,7 @@ catch (Exception ex)
         $"The signing agent could not start on port {config.Port}.\n\n"
         + $"{ex.Message}\n\n"
         + "Another program may be using that port. Change \"Port\" in\n"
-        + "%APPDATA%\\ekSign\\agent-config.json and start the agent again.");
+        + "%APPDATA%\\ekSigner\\agent-config.json and start the agent again.");
     return 1;
 }
 

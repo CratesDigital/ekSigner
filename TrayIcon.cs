@@ -73,7 +73,7 @@ internal sealed class TrayIcon : IDisposable
             Icon = LoadIcon(),
             ContextMenuStrip = menu,
             Visible = true,
-            Text = "ekSign",
+            Text = "ekSigner",
         };
         _icon.DoubleClick += (_, _) => Open("/");
 
@@ -128,7 +128,7 @@ internal sealed class TrayIcon : IDisposable
 
             MessageBox.Show(
                 "Windows would not let the startup setting be changed.",
-                "ekSign", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                "ekSigner", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
@@ -158,7 +158,7 @@ internal sealed class TrayIcon : IDisposable
             state = "token locked";
         }
 
-        _icon.Text = $"ekSign — {state}";
+        _icon.Text = $"ekSigner — {state}";
     }
 
     private void Open(string path)

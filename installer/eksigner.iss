@@ -1,11 +1,11 @@
-﻿; Inno Setup script for the ekSign.
+﻿; Inno Setup script for ekSigner.
 ;
 ; Build the payload first, from tools/eta-sign-agent:
 ;     dotnet publish -c Release
 ; then compile this script:
-;     iscc installer\eksign.iss
+;     iscc installer\eksigner.iss
 ;
-; Produces one ekSign-Setup.exe: double-click, Install, Finish.
+; Produces one ekSigner-Setup.exe: double-click, Install, Finish.
 ;
 ; Two choices are deliberate and worth not undoing:
 ;
@@ -24,9 +24,9 @@
   #define AppVersion "1.0.0"
 #endif
 
-#define AppName    "ekSign"
+#define AppName    "ekSigner"
 #define Publisher  "Eickter Software & Supplies"
-#define ExeName    "eksign.exe"
+#define ExeName    "eksigner.exe"
 #define PublishDir "..\bin\Release\net8.0-windows\win-x64\publish"
 
 [Setup]
@@ -43,14 +43,14 @@ AppCopyright=© 2026 Eickter Software & Supplies
 ; names its publisher in Properties → Details rather than showing a blank pane.
 VersionInfoCompany={#Publisher}
 VersionInfoProductName={#AppName}
-VersionInfoDescription=ekSign Setup
+VersionInfoDescription=ekSigner Setup
 VersionInfoCopyright=© 2026 Eickter Software & Supplies
 VersionInfoVersion={#AppVersion}
-SetupIconFile=..\eksign.ico
-DefaultDirName={localappdata}\Programs\ekSign
+SetupIconFile=..\eksigner.ico
+DefaultDirName={localappdata}\Programs\ekSigner
 DefaultGroupName={#AppName}
 OutputDir=..\dist
-OutputBaseFilename=ekSign-Setup
+OutputBaseFilename=ekSigner-Setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -99,7 +99,7 @@ Type: files; Name: "{app}\ekpos-sign-agent.exe"
 ; The agent writes this itself, so nothing is created here. It is declared only
 ; so uninstalling takes it away — left behind, Windows would try to launch a
 ; deleted executable at every login.
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "ekSign"; ValueType: none; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "ekSigner"; ValueType: none; Flags: uninsdeletevalue
 ; The name it went by before the rename. The agent clears this itself when it
 ; next writes its own value, but an upgrade that is never launched again would
 ; leave Windows starting a deleted executable at every login.
@@ -130,6 +130,6 @@ begin
   Result := '';
 end;
 
-// agent-config.json lives in %APPDATA%\ekSign and is left alone on uninstall,
+// agent-config.json lives in %APPDATA%\ekSigner and is left alone on uninstall,
 // so reinstalling keeps the pairing and the chosen certificate. A config left
 // under the old %APPDATA%\ekPOS is carried over by the agent on first run.

@@ -17,7 +17,7 @@ namespace EtaSignAgent;
 internal static class Autostart
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "ekSign";
+    private const string ValueName = "ekSigner";
 
     /// <summary>
     /// What the value was called while the agent was named for one product.
@@ -65,7 +65,7 @@ internal static class Autostart
                 var path = ExecutablePath;
                 if (string.IsNullOrEmpty(path)) return false;
                 // Quoted: the install path contains spaces, and an unquoted
-                // value would have Windows try to run "C:\Users\...\ekSign".
+                // value would have Windows try to run "C:\Users\...\ekSigner".
                 key.SetValue(ValueName, $"\"{path}\"");
                 key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
             }

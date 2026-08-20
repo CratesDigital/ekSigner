@@ -34,7 +34,7 @@ internal static class StatusPage
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">
-              <title>ekSign</title>
+              <title>ekSigner</title>
               <style>
                 :root { color-scheme: light dark; }
                 body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -76,7 +76,7 @@ internal static class StatusPage
             </head>
             <body>
               <div class="card">
-                <h1>ekSign</h1>
+                <h1>ekSigner</h1>
                 <p class="addr">Running on http://127.0.0.1:{{config.Port}}</p>
 
                 <h2>Pairing code</h2>

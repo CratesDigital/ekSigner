@@ -26,7 +26,7 @@ internal static class StartupError
         try
         {
             var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ekSign");
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ekSigner");
             Directory.CreateDirectory(dir);
             File.AppendAllText(
                 Path.Combine(dir, "agent-error.log"),
@@ -39,7 +39,7 @@ internal static class StartupError
 
         if (OperatingSystem.IsWindows())
         {
-            try { MessageBoxW(IntPtr.Zero, message, "ekSign", IconError); }
+            try { MessageBoxW(IntPtr.Zero, message, "ekSigner", IconError); }
             catch { /* nothing left to fall back to */ }
         }
     }

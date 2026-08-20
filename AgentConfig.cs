@@ -46,7 +46,7 @@ public sealed class AgentConfig
     /// new pairing code every time the agent updated.
     /// </summary>
     private static string ConfigDir => System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ekSign");
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ekSigner");
 
     private static string Path => System.IO.Path.Combine(ConfigDir, "agent-config.json");
 
