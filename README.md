@@ -14,7 +14,7 @@ ITIDA's Web-Sign Client is a portal companion, not an integration API: its own
 manual scopes it to signing "through portal", it is launched per-signature via
 the `signsrv:` protocol handler rather than listening on a port, it prompts for
 the PIN on every signature, and it is Windows-only. See
-[the design doc](../../docs/eta-signing-agent-design.md).
+[the design doc](docs/design.md).
 
 ## Set-up, once per workstation
 
