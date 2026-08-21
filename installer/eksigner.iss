@@ -69,9 +69,11 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 Name: "ar"; MessagesFile: "compiler:Languages\Arabic.isl"
 
 [Files]
-; The whole publish folder rather than the single exe by name: whether
-; self-contained publish emits one file or a handful depends on the SDK
-; version, and a missing runtime DLL fails at launch with nothing to read.
+; The whole publish folder rather than the single exe by name. The csproj
+; publishes self-contained with PublishSingleFile off, so this is the runtime
+; as a few hundred loose DLLs, and a missing one fails at launch with nothing
+; to read. It was already a glob before that change, because whether publish
+; emitted one file or a handful varied by SDK version.
 ; Excludes are belt-and-braces: the csproj already suppresses web.config, but
 ; the IIS shim is emitted by the Web SDK's own targets and an SDK update could
 ; put either back. Neither belongs in a desktop install.

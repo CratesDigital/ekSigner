@@ -34,12 +34,21 @@
 
     <!-- Publish defaults, so releasing is `dotnet publish -c Release`.
          Self-contained because a tenant cannot be asked to install a .NET
-         runtime first, and single-file so the installer ships one binary.
-         Windows-only by decision: the macOS PKCS#11 paths in AgentConfig came
-         from vendor documentation, never from a machine with a token in it. -->
+         runtime first. Windows-only by decision: the macOS PKCS#11 paths in
+         AgentConfig came from vendor documentation, never from a machine with
+         a token in it.
+
+         NOT single-file, deliberately. Self-contained plus PublishSingleFile
+         produces a ~70 MB executable that unpacks itself at startup, and
+         wrapping that in an lzma2/max solid-compressed installer gives the
+         finished download the shape of a packed dropper. Defender was deleting
+         it on arrival. Shipping the runtime as loose DLLs costs a bigger
+         install directory and nothing else — installer/eksigner.iss already
+         globs the whole publish folder, precisely because the emitted file
+         count was known to vary by SDK version. -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
-    <PublishSingleFile>true</PublishSingleFile>
+    <PublishSingleFile>false</PublishSingleFile>
     <!-- Not trimmed: minimal APIs and System.Text.Json resolve types by
          reflection, and a trimmed build fails at runtime, not at build time. -->
     <PublishTrimmed>false</PublishTrimmed>
