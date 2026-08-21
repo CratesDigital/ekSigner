@@ -48,10 +48,12 @@ The code proves the person configuring your site is sitting at the machine with
 the token. It is not a secret shared with your server, and it does not need to
 be.
 
-**Send an `Origin` header.** Browsers do this automatically for cross-origin
-requests. Requests with *no* `Origin` at all — curl, the agent's own pages — are
-treated as same-machine and allowed through; the browser is the untrusted caller
-here, not the shell.
+**Send an `Origin` header.** Browsers do this automatically. Everything except
+`/v1/ping` and `/v1/pair` requires the origin to be paired — `/v1/certificates`,
+`/v1/sign`, `/v1/unlock` and `/v1/lock`. Requests with *no* `Origin` at all
+(curl) are treated as same-machine and allowed through; the browser is the
+untrusted caller here, not the shell. The agent's own pages are recognised by
+their loopback origin.
 
 ---
 
@@ -93,6 +95,21 @@ that no agent is running, rather than hanging your page.
 **200** `{ "ok": true, "origin": "https://your-app.example" }`
 **400** no `Origin` header — pairing must be initiated from the site being paired.
 **403** wrong code.
+**429** too many wrong codes:
+
+```json
+{
+  "ok": false,
+  "error": "too_many_attempts",
+  "retry_after_seconds": 300,
+  "message": "Too many incorrect pairing codes. Try again in 5 minute(s)."
+}
+```
+
+Five wrong codes and pairing is refused for five minutes. Show
+`message` and disable the button for `retry_after_seconds`; do not retry
+automatically, and do not offer to "try all codes". The limit exists because six
+digits is only a secret while guessing is expensive.
 
 ### `GET /v1/certificates`
 
@@ -157,12 +174,14 @@ including an expired certificate, which is refused before it is used.
 
 ### `POST /v1/unlock`
 
+Requires pairing.
+
 ```json
 { "pin": "……" }
 ```
 
 **200** `{ "ok": true, "until": "2026-08-21T15:42:00Z" }`, **400** with the
-token's message otherwise.
+token's message otherwise, **403** if not paired.
 
 **Prefer sending the operator to `GET /unlock` instead of building your own PIN
 box.** That page is served by the agent, so the PIN never touches your page, your
@@ -175,7 +194,7 @@ taxpayer's e-seal. Do not build a retry loop on top of this endpoint either.
 
 ### `POST /v1/lock`
 
-Forgets the PIN session immediately. `{ "ok": true }`.
+Forgets the PIN session immediately. Requires pairing. `{ "ok": true }`.
 
 ### `GET /` and `GET /unlock`
 

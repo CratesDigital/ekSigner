@@ -25,12 +25,18 @@ application's repository; their entries are reconstructed from that history.
 - README rewritten for developers integrating the agent, rather than for one
   application's operators.
 
-### Known issues
-- `/v1/pair` is not rate-limited, so the six-digit pairing code can be
-  enumerated by a page left open in the operator's browser.
-- `/v1/unlock` and `/v1/lock` do not require a paired origin.
-
-Both are described in [`SECURITY.md`](SECURITY.md).
+### Security
+- **`/v1/pair` is now rate-limited** — five wrong codes and pairing is refused
+  for five minutes, answering `429`. Unthrottled, the six-digit code could be
+  enumerated over loopback in minutes by a page left open in the operator's
+  browser, after which it could poll `/v1/ping` until the token was unlocked and
+  request seals under the taxpayer's e-seal.
+- **`/v1/unlock` and `/v1/lock` now require a paired origin.** The PIN was always
+  required, so this was never a way to unlock a token — but an unpaired page
+  could submit wrong PINs in a loop, and neither supported token reports its
+  remaining attempts, which makes that a way to permanently lock a taxpayer's
+  e-seal from a browser tab. The agent's own pages are recognised by their
+  loopback origin and are unaffected.
 
 ## [1.3.0] — 2026-08-19
 

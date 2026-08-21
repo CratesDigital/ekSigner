@@ -33,6 +33,22 @@ the token after the operator has read a six-digit code off the agent's own page
 and entered it on that site — which proves whoever configured the site was
 sitting at the machine holding the token.
 
+**Pairing attempts are rate-limited.** Five wrong codes and `/v1/pair` refuses
+everything for five minutes. Six digits is only a secret while guessing is
+expensive: unthrottled, a page left open in the operator's browser could work
+through all 900,000 codes over loopback in minutes and then poll `/v1/ping` until
+the token was unlocked. The cooldown puts the expected time to guess a code past
+a year and a half. Deliberately *not* combined with rotating the code on
+exhaustion — each guess remains 1 in 900,000 either way, so rotation buys no
+security while leaving the operator looking at a code that silently stopped
+working.
+
+**Every endpoint touching the token or the session requires a paired origin** —
+`/v1/certificates`, `/v1/sign`, `/v1/unlock` and `/v1/lock`. The agent's own
+pages are recognised by their loopback origin, so the unlock page can still call
+the endpoint it exists for. `/v1/ping` and `/v1/pair` are necessarily open: a
+site has to be able to ask whether it is paired, and to pair.
+
 **CORS is not the security boundary, and is not pretending to be.**
 `Access-Control-Allow-Origin` is echoed for *every* origin, because gating it on
 pairing makes pairing impossible: `/v1/pair`'s own preflight comes from an origin
@@ -50,19 +66,6 @@ process in that session. While the token is unlocked, such a program can request
 signatures. The boundary here is the user account: malware already running as the
 operator is past this design, and would in any case be able to drive the token
 directly through the same vendor module.
-
-**Pairing is not rate-limited.** `/v1/pair` accepts unlimited attempts at the
-six-digit code, so a malicious page left open in the operator's browser can
-enumerate it. It would then still need the token to be unlocked to obtain a
-signature. *This is a known weakness and a fix is intended; see the issue
-tracker.*
-
-**`/v1/unlock` and `/v1/lock` do not require a paired origin.** `/v1/unlock`
-still requires the correct PIN, so this is not a way to unlock a token. But an
-unpaired page can lock a live session as a nuisance, and can submit wrong PINs —
-and while the *agent* never retries, nothing stops a caller from calling
-repeatedly, which on a token with an attempt counter is a denial-of-service
-against the operator's e-seal. *Also known, also intended to be fixed.*
 
 **The unlock window is time-based, not per-signature.** This is the deliberate
 trade that makes the agent usable at a point of sale — the alternative is ITIDA's

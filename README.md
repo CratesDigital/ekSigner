@@ -106,8 +106,9 @@ a failure that looks exactly like *the agent is not running*:
 - **Chrome's Private Network Access.** A public → loopback request sends a
   preflight carrying `Access-Control-Request-Private-Network: true`, and the call
   fails unless the response answers `Access-Control-Allow-Private-Network: true`.
-- **You must send an `Origin` header**, and pair it first. Everything touching
-  the token checks it.
+- **You must send an `Origin` header**, and pair it first. Every endpoint except
+  `/v1/ping` and `/v1/pair` checks it. Pairing is rate-limited — five wrong codes
+  and it answers `429` for five minutes.
 
 ## While it is running
 

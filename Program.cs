@@ -48,6 +48,7 @@ if (!isFirstInstance)
 Autostart.Apply(config);
 
 var tokens = new TokenService(config.ModulePaths());
+var pairing = new PairingGuard();
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
@@ -98,12 +99,20 @@ app.Use(async (context, next) =>
 });
 
 // Anything that touches the token requires a paired origin. Requests with no
-// Origin at all (curl, the agent's own unlock page) are same-machine and are
-// allowed through — the browser is the untrusted caller here, not the shell.
+// Origin at all (curl) are same-machine and are allowed through — the browser is
+// the untrusted caller here, not the shell.
+//
+// The agent's own pages count as allowed. They are served from this very port,
+// and a same-origin POST still carries an Origin header, so without this the
+// unlock page would be refused by the endpoint it exists to call. Both spellings
+// of loopback appear, because the operator types one or the other into the bar.
+bool IsSelf(string origin) =>
+    origin == $"http://127.0.0.1:{config.Port}" || origin == $"http://localhost:{config.Port}";
+
 bool Allowed(HttpContext ctx)
 {
     var origin = ctx.Request.Headers.Origin.ToString();
-    return string.IsNullOrEmpty(origin) || config.IsPaired(origin);
+    return string.IsNullOrEmpty(origin) || IsSelf(origin) || config.IsPaired(origin);
 }
 
 IResult Forbidden() => Results.Json(
@@ -200,6 +209,13 @@ app.MapGet("/", () => Results.Content(StatusPage.Html(config, tokens), "text/htm
 
 app.MapPost("/v1/unlock", async (HttpContext ctx) =>
 {
+    // Paired origins only. The PIN is still required, so this was never a way
+    // to unlock a token — but an unpaired page could feed the token wrong PINs,
+    // and while the agent never retries, nothing stopped a caller from calling
+    // again. Neither supported token reports its remaining attempts, so that is
+    // a way to brick a taxpayer's e-seal from a browser tab.
+    if (!Allowed(ctx)) return Forbidden();
+
     var request = await ctx.Request.ReadFromJsonAsync<UnlockRequest>();
     if (request is null || string.IsNullOrWhiteSpace(request.Pin))
     {
@@ -220,12 +236,34 @@ app.MapPost("/v1/unlock", async (HttpContext ctx) =>
     }
 });
 
-app.MapPost("/v1/lock", () => { tokens.Lock(); return Results.Json(new { ok = true }); });
+// Paired origins only: an unpaired page could otherwise drop a live session out
+// from under the operator mid-invoice.
+app.MapPost("/v1/lock", (HttpContext ctx) =>
+{
+    if (!Allowed(ctx)) return Forbidden();
+
+    tokens.Lock();
+    return Results.Json(new { ok = true });
+});
 
 // ── Pairing ──────────────────────────────────────────────────────
 
 app.MapPost("/v1/pair", async (HttpContext ctx) =>
 {
+    // Checked before the code is even read. Six digits is only a secret while
+    // guessing is expensive, and this endpoint is the whole boundary: a paired
+    // origin can ask for a document to be sealed with the taxpayer's e-seal.
+    if (pairing.LockedFor is { } remaining)
+    {
+        return Results.Json(new
+        {
+            ok = false,
+            error = "too_many_attempts",
+            retry_after_seconds = (int)Math.Ceiling(remaining.TotalSeconds),
+            message = $"Too many incorrect pairing codes. Try again in {Math.Ceiling(remaining.TotalMinutes)} minute(s).",
+        }, statusCode: StatusCodes.Status429TooManyRequests);
+    }
+
     var request = await ctx.Request.ReadFromJsonAsync<PairRequest>();
     var origin = ctx.Request.Headers.Origin.ToString();
 
@@ -235,9 +273,11 @@ app.MapPost("/v1/pair", async (HttpContext ctx) =>
     }
     if (request is null || request.Code != config.PairingCode)
     {
+        pairing.Failed();
         return Results.Json(new { ok = false, message = "That pairing code is not correct." }, statusCode: 403);
     }
 
+    pairing.Succeeded();
     config.Pair(origin);
     Console.WriteLine($"[pair] {origin} is now allowed to request signatures.");
 
