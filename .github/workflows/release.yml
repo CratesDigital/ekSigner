@@ -1,0 +1,103 @@
+# Builds the ekSigner installer and attaches it to a GitHub release.
+#
+# This has to run on a Windows runner: the agent publishes self-contained for
+# win-x64 and Inno Setup is a Windows compiler.
+#
+# Tag a release to publish one:
+#     git tag v1.4.0 && git push origin v1.4.0
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to stamp on the build
+        default: 0.0.0-dev
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Work out the version
+        id: version
+        shell: pwsh
+        run: |
+          $v = if ('${{ github.ref_type }}' -eq 'tag') {
+            '${{ github.ref_name }}' -replace '^v', ''
+          } else {
+            '${{ inputs.version }}'
+          }
+          "value=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Building $v"
+
+      # RuntimeIdentifier, SelfContained and PublishSingleFile all live in the
+      # csproj, so there is one definition of how a release is built and it is
+      # the same one a developer gets locally.
+      - name: Publish the agent
+        run: dotnet publish -c Release -p:Version=${{ steps.version.outputs.value }}
+
+      # Installed rather than assumed. The runner image ships some Inno Setup,
+      # but the .iss uses ArchitecturesAllowed=x64compatible, which is 6.3+ and
+      # fails to compile on anything older — and a release is the worst moment
+      # to discover the image drifted. choco is a no-op when it is current.
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            /DAppVersion=${{ steps.version.outputs.value }} `
+            installer\eksigner.iss
+
+      # Published in the release notes so a cautious operator — or an IT
+      # department that will not run an unsigned installer on trust — has
+      # something to check the download against. See "Why it is not signed yet"
+      # in the README.
+      - name: Hash the installer
+        id: hash
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash dist\ekSigner-Setup.exe -Algorithm SHA256).Hash.ToLower()
+          "value=$h" >> $env:GITHUB_OUTPUT
+          Write-Host "SHA-256: $h"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ekSigner-Setup
+          path: dist/ekSigner-Setup.exe
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/ekSigner-Setup.exe
+          body: |
+            ekSigner ${{ steps.version.outputs.value }} for Windows.
+
+            Download the installer, double-click it, and the agent's page opens
+            with a pairing code. Enter that code in the application you are
+            pairing with. One install signs for every site paired with it.
+
+            **SHA-256**
+            ```
+            ${{ steps.hash.outputs.value }}
+            ```
+
+            Windows will warn that the publisher is unrecognised: this installer
+            is not code-signed. Verify the hash above before running it. Why it
+            is unsigned, and what is being done about it, is explained under
+            "Why it is not signed yet" in the README.

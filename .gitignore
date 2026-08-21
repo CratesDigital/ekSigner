@@ -1,0 +1,12 @@
+# Build output
+bin/
+obj/
+dist/
+
+# Rider / Visual Studio
+.idea/
+.vs/
+*.user
+
+# A local run can leave one of these beside the executable
+agent-config.json

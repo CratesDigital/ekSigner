@@ -1,33 +1,113 @@
 # ekSigner
 
-Replaces the PowerShell spike. Runs on the machine holding the e-seal token,
-reads the vendor PKCS#11 module directly, and signs ETA documents on request
-from a paired ekPOS site.
+**A signing agent for Egyptian e-invoicing.** It runs on the machine holding the
+e-seal token, reads the vendor PKCS#11 module directly, and signs ETA documents
+on request from whichever applications its operator has paired it with.
 
-The seal produced here is the same CAdES-BES the spike produced — the CMS
-builder is carried over unchanged, and ETA has already accepted a document
-signed with it (INV00021, portal shows *Signed By: ايكتر للبرمجه والتوريدات*).
+If you are building software that submits to the Egyptian Tax Authority, this
+solves the part that has no official answer: **how does your application get a
+document sealed by a token that is plugged into someone else's computer?**
 
-## Why it is not the ITIDA client
+[العربية](README.ar.md) · [HTTP API](docs/api.md) · [Design notes](docs/design.md) · [Security](SECURITY.md)
 
-ITIDA's Web-Sign Client is a portal companion, not an integration API: its own
-manual scopes it to signing "through portal", it is launched per-signature via
-the `signsrv:` protocol handler rather than listening on a port, it prompts for
-the PIN on every signature, and it is Windows-only. See
-[the design doc](docs/design.md).
+## The problem it solves
+
+ETA requires every document to carry a CAdES-BES seal produced by a hardware
+e-seal token. The token is physically in a shop, an accountant's office, a
+warehouse — not on your server. So your application cannot sign; only the
+operator's machine can.
+
+ITIDA publishes a Web-Sign Client, but it is a **portal companion, not an
+integration API**:
+
+- its own manual scopes it to signing "through portal"
+- it is launched per-signature through the `signsrv:` protocol handler, rather
+  than listening on a port your application can call
+- it prompts for the PIN on **every single signature**, which is unusable for a
+  point-of-sale terminal issuing invoices all day
+- it is Windows-only, and requires a self-signed certificate to be installed and
+  accepted before a browser will talk to it
+
+ekSigner is a small local HTTP service instead. Your web application calls
+`http://127.0.0.1:8420` from the operator's browser, and gets a signature back.
+The PIN is entered once per session, on a page the agent itself serves, and
+never reaches your servers.
+
+## The finding that will save you a week
+
+ITIDA's *Digital Signature Format for E-Invoice System* v1.1 requires the CMS
+`eContentType` to be **`digestedData`** (`1.2.840.113549.1.7.5`) — not the
+`id-data` that every generic CAdES tool emits.
+
+This means **`openssl cms -sign -cades` cannot produce a signature ETA accepts.**
+It adds the correct `signing-certificate-v2` attribute and then always writes
+`id-data`, and ETA rejects the result with an error that does not mention the
+content type at all.
+
+`EtaCades.cs` assembles the structure from BouncyCastle ASN.1 types for exactly
+this reason: the high-level `CmsSignedDataGenerator` gives you no way to override
+the content type, and no way to delegate the RSA operation to a smart token.
+[The full structure is documented in `docs/design.md`](docs/design.md), field by
+field, verified against openssl as an independent parser on all eleven
+structural checks.
+
+**This is proven against production ETA**, not just against a specification: a
+document sealed this way was accepted by the preprod portal, which rendered
+*Signed By: ايكتر للبرمجه والتوريدات* against the certificate.
+
+## Supported tokens
+
+Verified on **ePass2003** and **PROXKey**, which are what ETA-registered
+taxpayers are issued in practice. Any PKCS#11 module should work — extra module
+paths can be added to the config file without a rebuild.
+
+Windows x64. The macOS PKCS#11 paths in `AgentConfig.cs` came from vendor
+documentation rather than from a machine with a token in it, so treat macOS as
+untested rather than supported.
 
 ## Set-up, once per workstation
 
-1. **Install.** Download `ekSigner-Setup.exe` — the Connection tab
-   offers it — and run it. No administrator rights and nothing to configure; it
-   installs under the user's own profile and starts at every login from then on.
+1. **Install.** Download `ekSigner-Setup.exe` from
+   [Releases](https://github.com/CratesDigital/ekSigner/releases) and run it. No
+   administrator rights and nothing to configure; it installs under the user's
+   own profile and starts at every login from then on.
 2. **Pair it.** The agent's page opens by itself after installing, showing a
-   six-digit code. In ekPOS → Integrations → ETA → Connection, enter that code.
-   The agent records that origin and refuses every other one. To see the code
-   again later, open <http://127.0.0.1:8420/>.
+   six-digit code. Enter that code in the application you are pairing with. The
+   agent records that origin and refuses every other one.
+   To see the code again later, open <http://127.0.0.1:8420/>.
 3. **Unlock the token** at <http://127.0.0.1:8420/unlock> and enter the PIN.
    It stays unlocked for 60 minutes by default.
-4. **Sign** from ekPOS → Submissions.
+4. **Sign**, from the application you paired.
+
+One install signs for every site paired with it — an office running two
+different systems pairs one agent with both.
+
+> **Windows will warn you the publisher is unrecognised.** The installer is not
+> code-signed. Free code signing is open-source-only and this project is
+> applying; until then, verify the download against the SHA-256 published on the
+> release. See [Why it is not signed yet](#why-it-is-not-signed-yet).
+
+## Integrating your own application
+
+Three endpoints and a pairing handshake. **[Full contract in `docs/api.md`](docs/api.md).**
+
+```
+GET  /v1/ping           is the agent there, is it unlocked, are we paired
+POST /v1/pair           exchange the six-digit code for a paired origin
+GET  /v1/certificates   list the e-seals on the token
+POST /v1/sign           canonical string in, CAdES-BES signature out
+POST /v1/unlock         PIN entry (normally done on the agent's own page)
+POST /v1/lock           forget the session
+```
+
+Two things bite integrators, both documented in `docs/api.md` and both producing
+a failure that looks exactly like *the agent is not running*:
+
+- **Chrome's Private Network Access.** A public → loopback request sends a
+  preflight carrying `Access-Control-Request-Private-Network: true`, and the call
+  fails unless the response answers `Access-Control-Allow-Private-Network: true`.
+- **You must send an `Origin` header**, and pair it first. Everything touching
+  the token checks it.
 
 ## While it is running
 
@@ -61,115 +141,63 @@ icon in the tray, and opens its page on first run. The build is windowless, so
 `Console.WriteLine` output goes nowhere — read the state off the tray tooltip or
 the page.
 
+## Where the config lives
+
+`%APPDATA%\ekSigner\agent-config.json` — the pairing, the pairing code, the port,
+and any extra PKCS#11 module paths. Deliberately *not* beside the executable:
+the installer overwrites its own directory on upgrade, which would cost the
+operator their pairing every time the agent updated. Configs left at either of
+two earlier locations are carried across on first run.
+
 ## Releasing
 
 ```powershell
-git tag sign-agent-v1.0.0
-git push origin sign-agent-v1.0.0
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
-`.github/workflows/sign-agent.yml` publishes self-contained for `win-x64`,
-compiles `installer/eksigner.iss`, and attaches the installer to a
-GitHub release. It needs a Windows runner — both the publish and Inno Setup do.
+`.github/workflows/release.yml` publishes self-contained for `win-x64`, compiles
+`installer/eksigner.iss`, and attaches the installer to a GitHub release. It
+needs a Windows runner — both the publish and Inno Setup do.
 
-### Getting it to the shops
+After the release is built, submit the installer to
+<https://www.microsoft.com/en-us/wdsi/filesubmission> as a software-developer
+false positive. Defender's heuristics flag new unsigned installers, and the
+clearance is scoped to the file hash, so this repeats every release. Allow 1–3
+days before pointing anyone at the download.
 
-The repo is private, so a GitHub release asset answers a tenant's browser with
-a 404. Copy the installer onto the ekPOS host instead:
+## Why it is not signed yet
 
-```bash
-scp ekSigner-Setup.exe deploy@HOST:/var/www/ekpos/public/downloads/
-```
+An unsigned installer means Windows SmartScreen warns on first download, and
+Defender has been known to delete it outright. The people installing this are
+shop staff who are right to be suspicious of that.
 
-That path is where `config('eta.agent.download_path')` looks, and the download
-button in **ETA → Setup → Document signing** appears as soon as the file is
-really there — no config change, no restart. Remove the file and the button
-goes away rather than leaving a link to a 404. `ETA_AGENT_DOWNLOAD_URL`
-overrides the location entirely if the installer is served from somewhere else.
+Signing it is not simply a matter of buying a certificate:
 
-Still open: **the installer is unsigned**, so Windows SmartScreen warns on
-first download. The people installing this are shop staff, who are right to be
-suspicious of that warning; an OV/EV certificate and a signing step in the
-workflow would remove it.
+- **Self-signing achieves nothing.** Microsoft's own guidance rates a
+  self-signed certificate as *"same behavior as no signature"* — the publisher
+  name is shown only for a certificate chaining to the Microsoft Trusted Root
+  Program. It would also cost the no-administrator install.
+- **EV is no better than OV.** EV certificates stopped bypassing SmartScreen in
+  2024.
+- **No certificate removes the first-download warning anyway.** Reputation is
+  per-publisher and per-file-hash and only accumulates with download volume.
+- **Azure Artifact Signing** ($9.99/mo, the cheap option) is restricted to
+  organisations in the US, Canada, the EU and the UK. This project is Egyptian.
 
-## Where the config lives
+Free code signing exists — [SignPath Foundation](https://signpath.org/) and
+[OSSign](https://ossign.org/) — and is open-source-only, which is one of the
+reasons this project is public. Both require several months of project history
+before they will consider an application. Until then:
 
-`%APPDATA%\ekPOS\agent-config.json` — the pairing, the pairing code, the port,
-and any extra PKCS#11 module paths. Deliberately *not* beside the executable:
-the installer overwrites its own directory on upgrade, which would cost the
-operator their pairing every time the agent updated. A config left beside the
-exe by a pre-installer build is moved across on first run.
+- the build publishes loose runtime DLLs rather than a self-unpacking single
+  file, which was the largest heuristic trigger on the download
+- every release is submitted to Microsoft as a false positive
+- every release publishes a SHA-256 to verify against
 
-## Three decisions worth knowing
+## Licence
 
-**Plain HTTP on loopback, not HTTPS.** Loopback is a *potentially trustworthy
-origin*, so an HTTPS ekPOS page can call it without mixed-content blocking. That
-removes the self-signed-certificate dance that makes the ITIDA client painful to
-set up — there is no certificate to install or accept.
+[Apache-2.0](LICENSE). Copyright 2026 Eickter Software & Supplies.
 
-The catch is Chrome's Private Network Access: a public → loopback request gets a
-preflight carrying `Access-Control-Request-Private-Network: true`, and the call
-fails unless the response answers `Access-Control-Allow-Private-Network: true`.
-That header is in `Program.cs`. **Remove it and the failure looks exactly like
-the agent not running.**
-
-The same is true of `Access-Control-Allow-Origin`, which is echoed for *every*
-origin rather than only paired ones. Pairing cannot bootstrap otherwise: the
-preflight for `/v1/pair` arrives from an origin that is not yet paired, so
-withholding the header there blocks the very call that would pair it. Access is
-enforced by the pairing check in each handler, not by the CORS headers.
-
-**The PIN is typed into a page the agent serves.** Not into ekPOS. It never
-enters ekPOS's browser context and never reaches its servers. That is also why
-there is no GUI toolkit here and why the same build works on Windows and macOS.
-
-**ekPOS sends the canonical string, never a hash.** The agent digests it itself,
-so there is no question of the data being hashed twice — the ambiguity that made
-the ITIDA client impossible to verify.
-
-## Endpoints
-
-| Method | Path | Notes |
-|---|---|---|
-| `GET` | `/` | status page: pairing code, paired sites, token state |
-| `GET` | `/v1/ping` | version, loaded modules, unlock state. No pairing needed |
-| `GET` | `/v1/certificates` | paired origins only |
-| `POST` | `/v1/sign` | `{thumbprint, canonical}` → `{signature}`; `409 locked` if the PIN has not been entered |
-| `GET` | `/unlock` | PIN page, served by the agent |
-| `POST` | `/v1/lock` | forget the PIN now |
-| `POST` | `/v1/pair` | `{code}` — origin taken from the request |
-
-## Token handling
-
-Both supported tokens advertise `CKM_SHA256_RSA_PKCS`, so the token hashes and
-signs the `SignedAttrs` in one call and there is no `DigestInfo` to assemble.
-
-Modules probed (all that exist are loaded, since a machine may hold either
-token):
-
-| | Windows | macOS |
-|---|---|---|
-| Feitian ePass2003 | `eps2003csp11.dll`, `eps2003csp1164.dll` | `libcastle.1.0.0.dylib` |
-| WatchData PROXKey | `SignatureP11.dll`, `wdpkcs.dll` | `libwdpkcs_Proxkey.dylib` |
-
-Add anything unusual to `ExtraModules` in `agent-config.json`.
-
-**The PIN is never retried.** Neither token reports `CKF_USER_PIN_FINAL_TRY`, so
-nothing warns before one locks permanently — a retry loop would eventually brick
-a taxpayer's e-seal. One `C_Login` per PIN the operator actually typed.
-
-All token work is serialised through a single lock: vendor modules are often not
-thread-safe and an HTTP server is concurrent by nature. Sessions are opened,
-used, and closed immediately rather than held.
-
-## Not done yet
-
-- **Nothing here has been compiled.** There is no .NET SDK on the ekPOS server
-  and the tokens live on a workstation, so every build and every run has to
-  happen there.
-- Windows only. The macOS module paths in `AgentConfig` came from vendor
-  documentation, never from a machine with a token in it, and the csproj now
-  pins `win-x64`.
-- The installer is unsigned — see *Releasing*.
-- PROXKey signing is untested; only enumeration has been exercised on it.
-- No auto-update: a new version means running the installer again.
+Not affiliated with, endorsed by, or supported by the Egyptian Tax Authority or
+ITIDA. It implements their published specification; it is not their software.
