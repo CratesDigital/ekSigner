@@ -88,6 +88,11 @@ Name: "{group}\Signing agent page"; Filename: "http://127.0.0.1:8420/"
 ; manual launch became a second instance and raised an error dialog.
 
 [InstallDelete]
+; Everything named ekPOS below is a compatibility shim, not dead weight: that is
+; the name this agent shipped under before it was generalised, and installs
+; carrying those names are still in service in shops. Removing these entries
+; leaves those machines starting a deleted executable at every login.
+;
 ; Remove the shortcut installed by 1.1.0 and earlier, now that the Run key has
 ; taken over. Left behind it would start a second copy at every login.
 Type: files; Name: "{userstartup}\{#AppName}.lnk"

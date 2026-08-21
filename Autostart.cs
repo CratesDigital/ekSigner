@@ -1,3 +1,17 @@
+// Copyright 2026 Eickter Software & Supplies
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 using Microsoft.Win32;
 
 namespace EtaSignAgent;
@@ -24,6 +38,10 @@ internal static class Autostart
     /// Removed whenever the new one is written: left behind, Windows starts the
     /// old executable too, and the second instance greets the operator with an
     /// error dialog.
+    ///
+    /// Not dead code. "ekPOS" is the name this agent shipped under before it
+    /// was generalised, and installs carrying that value are still in service
+    /// in shops. Deleting this strands them with two agents at every login.
     /// </summary>
     private const string LegacyValueName = "ekPOS Signing Agent";
 
