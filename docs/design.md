@@ -10,7 +10,7 @@ with both and signs from either. Nothing in the protocol below is
 product-specific — a caller needs the origin pairing and the three endpoints, and
 that is all.
 
-> **The signing path is proven.** A PowerShell spike signed a
+> **The signing path is proven.** A standalone .NET spike signed a
 > real serializer output on a real ePass2003 and produced a CAdES-BES that
 > matches ITIDA's Digital Signature Format v1.1 on all eleven structural
 > checks, verified with openssl as an independent parser: version 3,
