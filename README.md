@@ -82,10 +82,9 @@ untested rather than supported.
 One install signs for every site paired with it — an office running two
 different systems pairs one agent with both.
 
-> **Windows will warn you the publisher is unrecognised.** The installer is not
-> code-signed. Free code signing is open-source-only and this project is
-> applying; until then, verify the download against the SHA-256 published on the
-> release. See [Why it is not signed yet](#why-it-is-not-signed-yet).
+> **Windows will warn you the publisher is unrecognised.** Code signing is in
+> progress; until it lands, verify the download against the SHA-256 published on
+> the release. See [Code signing](#code-signing).
 
 ## Integrating your own application
 
@@ -167,34 +166,12 @@ false positive. Defender's heuristics flag new unsigned installers, and the
 clearance is scoped to the file hash, so this repeats every release. Allow 1–3
 days before pointing anyone at the download.
 
-## Why it is not signed yet
+## Code signing
 
-An unsigned installer means Windows SmartScreen warns on first download, and
-Defender has been known to delete it outright. The people installing this are
-shop staff who are right to be suspicious of that.
-
-Signing it is not simply a matter of buying a certificate:
-
-- **Self-signing achieves nothing.** Microsoft's own guidance rates a
-  self-signed certificate as *"same behavior as no signature"* — the publisher
-  name is shown only for a certificate chaining to the Microsoft Trusted Root
-  Program. It would also cost the no-administrator install.
-- **EV is no better than OV.** EV certificates stopped bypassing SmartScreen in
-  2024.
-- **No certificate removes the first-download warning anyway.** Reputation is
-  per-publisher and per-file-hash and only accumulates with download volume.
-- **Azure Artifact Signing** ($9.99/mo, the cheap option) is restricted to
-  organisations in the US, Canada, the EU and the UK. This project is Egyptian.
-
-Free code signing exists — [SignPath Foundation](https://signpath.org/) and
-[OSSign](https://ossign.org/) — and is open-source-only, which is one of the
-reasons this project is public. Both require several months of project history
-before they will consider an application. Until then:
-
-- the build publishes loose runtime DLLs rather than a self-unpacking single
-  file, which was the largest heuristic trigger on the download
-- every release is submitted to Microsoft as a false positive
-- every release publishes a SHA-256 to verify against
+Code signing is in progress. Until it lands, Windows will warn that the
+publisher is unrecognised, so **verify the installer against the SHA-256
+published with each [release](https://github.com/CratesDigital/ekSigner/releases)**
+before running it.
 
 ## Licence
 

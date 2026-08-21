@@ -65,8 +65,7 @@ jobs:
 
       # Published in the release notes so a cautious operator — or an IT
       # department that will not run an unsigned installer on trust — has
-      # something to check the download against. See "Why it is not signed yet"
-      # in the README.
+      # something to check the download against.
       - name: Hash the installer
         id: hash
         shell: pwsh
@@ -97,7 +96,6 @@ jobs:
             ${{ steps.hash.outputs.value }}
             ```
 
-            Windows will warn that the publisher is unrecognised: this installer
-            is not code-signed. Verify the hash above before running it. Why it
-            is unsigned, and what is being done about it, is explained under
-            "Why it is not signed yet" in the README.
+            Code signing is in progress. Until it lands Windows will warn
+            that the publisher is unrecognised — verify the hash above before
+            running the installer.
