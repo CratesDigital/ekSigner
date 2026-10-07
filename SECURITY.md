@@ -49,11 +49,21 @@ pages are recognised by their loopback origin, so the unlock page can still call
 the endpoint it exists for. `/v1/ping` and `/v1/pair` are necessarily open: a
 site has to be able to ask whether it is paired, and to pair.
 
-**CORS is not the security boundary, and is not pretending to be.**
-`Access-Control-Allow-Origin` is echoed for *every* origin, because gating it on
-pairing makes pairing impossible: `/v1/pair`'s own preflight comes from an origin
-that is by definition not yet paired. Access is enforced by the pairing check
-inside each handler.
+**CORS is not the security boundary, and is not pretending to be.** On the
+`/v1/` API, `Access-Control-Allow-Origin` is echoed for *every* origin, because
+gating it on pairing makes pairing impossible: `/v1/pair`'s own preflight comes
+from an origin that is by definition not yet paired. Access is enforced by the
+pairing check inside each handler.
+
+**The agent's own pages cannot be read or framed by another site.** The front
+page shows the pairing code, so it and the unlock page are served with no
+`Access-Control-Allow-Origin` at all, and with `X-Frame-Options: DENY`. A web
+page cannot fetch the code and pair itself, and cannot overlay the unlock form.
+
+**Requests must be addressed to loopback by name.** Anything whose `Host` is not
+`127.0.0.1:<port>` or `localhost:<port>` is refused with `421`. Without this a
+site could point its own hostname at 127.0.0.1 (DNS rebinding) and reach the
+agent as same-origin, past every CORS rule.
 
 ## What it does not defend
 

@@ -26,6 +26,15 @@ application's repository; their entries are reconstructed from that history.
   application's operators.
 
 ### Security
+- **Other websites can no longer read the pairing code.** CORS headers were
+  sent on every response, including the agent's own front page, which shows
+  the pairing code — so any page the operator visited could fetch it, pair
+  itself, and request seals whenever the token was unlocked. They are now sent
+  only on the `/v1/` API; the front page and the unlock page carry none and
+  refuse to be framed.
+- **Requests not addressed to `127.0.0.1` or `localhost` are refused** with
+  `421`. A site could otherwise point its own hostname at 127.0.0.1 (DNS
+  rebinding) and read the agent page as same-origin, past every CORS rule.
 - **`/v1/pair` is now rate-limited** — five wrong codes and pairing is refused
   for five minutes, answering `429`. Unthrottled, the six-digit code could be
   enumerated over loopback in minutes by a page left open in the operator's

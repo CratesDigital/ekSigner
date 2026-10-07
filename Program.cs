@@ -59,6 +59,23 @@ builder.Services.AddSingleton(tokens);
 
 var app = builder.Build();
 
+// ── Host check ───────────────────────────────────────────────────
+//
+// DNS rebinding: a site can point its own hostname at 127.0.0.1, and its page
+// then reaches this port as *same-origin* — no CORS involved, able to read the
+// agent page and its pairing code. The Host header still carries the site's
+// name, so anything not addressed to loopback by name is refused.
+app.Use(async (context, next) =>
+{
+    var host = context.Request.Host.Value ?? "";
+    if (host != $"127.0.0.1:{config.Port}" && host != $"localhost:{config.Port}")
+    {
+        context.Response.StatusCode = StatusCodes.Status421MisdirectedRequest;
+        return;
+    }
+    await next();
+});
+
 // ── CORS + Private Network Access ────────────────────────────────
 //
 // Loopback is a "potentially trustworthy origin", so an HTTPS page may
@@ -70,11 +87,26 @@ var app = builder.Build();
 // public → loopback request, and REFUSES the call unless the response says
 // `Access-Control-Allow-Private-Network: true`. Omit that one header and the
 // failure is indistinguishable from the agent not running at all.
+//
+// Only the API under /v1/ gets these headers. The agent's own pages — the
+// front page and the unlock page — must never carry Access-Control-Allow-
+// Origin: the front page shows the pairing code, and with the header any web
+// page the operator visits could fetch it, pair itself, and request seals as
+// soon as the token is unlocked. Those pages also refuse to be framed, so the
+// unlock form cannot be overlaid on someone else's site.
 app.Use(async (context, next) =>
 {
+    if (!context.Request.Path.StartsWithSegments("/v1"))
+    {
+        context.Response.Headers["X-Frame-Options"] = "DENY";
+        context.Response.Headers["Content-Security-Policy"] = "frame-ancestors 'none'";
+        await next();
+        return;
+    }
+
     var origin = context.Request.Headers.Origin.ToString();
 
-    // Echoed for EVERY origin, paired or not. CORS is not the security boundary
+    // Echoed for EVERY origin on the API, paired or not. CORS is not the security boundary
     // here — `Allowed()` is, and it still refuses an unpaired caller. Gating the
     // header on pairing made pairing impossible: /v1/pair's own preflight comes
     // from an origin that is by definition not yet paired, so the browser
